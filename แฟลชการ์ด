@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>แฟลชการ์ด - คำจีน + พินอิน + แปลไทย</title>
+  <style>
+    :root{--bg:#f4f6f8;--card:#ffffff;--accent:#2563eb;--muted:#6b7280}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans",sans-serif;
+      background:var(--bg);margin:0;padding:20px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+    .app{max-width:980px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+    .panel{background:var(--card);border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,0.06);padding:16px;flex:1;min-width:280px}
+    h1{margin:0 0 8px 0;font-size:20px}
+    label{display:block;margin-top:8px;color:var(--muted);font-size:13px}
+    input[type="text"], textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e5e7eb;margin-top:6px;font-size:14px}
+    textarea{min-height:80px;resize:vertical}
+    button{background:var(--accent);color:white;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;margin-top:8px}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(37,99,235,0.14)}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    .card-view{display:flex;flex-direction:column;align-items:center;justify-content:center;height:280px}
+    .card{width:100%;max-width:560px;height:200px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      box-shadow:0 8px 24px rgba(16,24,40,0.08);background:linear-gradient(180deg,#fff,#f8fafc);padding:18px;cursor:pointer;
+      user-select:none;transform-style:preserve-3d;transition:transform .45s}
+    .card.flipped{transform:rotateY(180deg)}
+    .card-inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;position:relative}
+    .card-front,.card-back{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;text-align:center}
+    .card-back{transform:rotateY(180deg)}
+    .meta{margin-top:12px;color:var(--muted);font-size:13px}
+    .list{max-height:360px;overflow:auto;margin-top:8px}
+    .item{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #f1f5f9}
+    .item .t{font-size:14px}
+    .item .actions{display:flex;gap:6px}
+    .small{font-size:12px;color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center}
+    .bottom-controls{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+    .importfile{display:none}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel" style="flex:0.9">
+      <h1>แฟลชการ์ด — ฝึกคำจีน</h1>
+      <div class="card-view">
+        <div id="card" class="card" tabindex="0" title="คลิกหรือกด Space เพื่อพลิกการ์ด">
+          <div class="card-inner card-front" id="card-front"></div>
+          <div class="card-inner card-back" id="card-back"></div>
+        </div>
+        <div class="meta" id="meta">ไม่พบการ์ด — เพิ่มการ์ดข้างล่าง</div>
+
+        <div class="bottom-controls">
+          <div class="controls">
+            <button id="prevBtn" class="ghost">ก่อนหน้า</button>
+            <button id="flipBtn">พลิก</button>
+            <button id="nextBtn" class="ghost">ถัดไป</button>
+            <button id="shuffleBtn" class="ghost">สุ่ม</button>
+          </div>
+          <div style="margin-left:8px">
+            <label class="small">โหมด: <span id="modeText">เรียง</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:0.9">
+      <h1>จัดการการ์ด</h1>
+      <label>ด้านหน้า (คำศัพท์จีน)</label>
+      <input id="frontInput" type="text" placeholder="เช่น 你好 / 谢谢" />
+      <label>พินอิน (Pinyin)</label>
+      <input id="pinyinInput" type="text" placeholder="เช่น nǐ hǎo / xièxie" />
+      <label>ด้านหลัง (คำแปลไทย)</label>
+      <textarea id="backInput" placeholder="เช่น สวัสดี / ขอบคุณ"></textarea>
+      <div class="row">
+        <button id="addBtn">เพิ่มการ์ด</button>
+        <button id="updateBtn" class="ghost" style="display:none">บันทึกการแก้ไข</button>
+        <button id="clearBtn" class="ghost">ล้างฟอร์ม</button>
+      </div>
+
+      <div style="margin-top:12px">
+        <label class="small">นำเข้า / ส่งออก</label>
+        <div class="row">
+          <button id="exportBtn" class="ghost">ส่งออก JSON</button>
+          <button id="importBtn" class="ghost">นำเข้า JSON (ไฟล์)</button>
+          <input id="fileInput" type="file" accept=".json" class="importfile" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label class="small">รายการการ์ด</label>
+        <div class="list" id="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'my_flashcards_v2';
+    let cards = load();
+    let index = 0;
+    let mode = 'ordered';
+    let shuffledOrder = [];
+
+    const cardEl = document.getElementById('card');
+    const frontEl = document.getElementById('card-front');
+    const backEl = document.getElementById('card-back');
+    const metaEl = document.getElementById('meta');
+    const modeText = document.getElementById('modeText');
+
+    const listEl = document.getElementById('list');
+    const frontInput = document.getElementById('frontInput');
+    const pinyinInput = document.getElementById('pinyinInput');
+    const backInput = document.getElementById('backInput');
+    const addBtn = document.getElementById('addBtn');
+    const updateBtn = document.getElementById('updateBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const prevBtn = document.getElementById('prevBtn');
+    const flipBtn = document.getElementById('flipBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    let editingId = null;
+
+    function load(){
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+      catch(e){ return []; }
+    }
+    function save(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+      renderList();
+    }
+    function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+    function renderList(){
+      listEl.innerHTML = '';
+      cards.forEach(c => {
+        const it = document.createElement('div');
+        it.className = 'item';
+        it.innerHTML = `<div>
+            <div class="t">${escapeHtml(c.front)}</div>
+            <div class="small">${escapeHtml(c.pinyin||'')}</div>
+            <div class="small">${escapeHtml(c.back)}</div>
+          </div>
+          <div class="actions">
+            <button class="ghost" data-edit="${c.id}">แก้ไข</button>
+            <button class="ghost" data-delete="${c.id}">ลบ</button>
+          </div>`;
+        listEl.appendChild(it);
+      });
+      listEl.querySelectorAll('button[data-edit]').forEach(b => b.onclick = () => startEdit(b.dataset.edit));
+      listEl.querySelectorAll('button[data-delete]').forEach(b => b.onclick = () => {
+        if(confirm('ลบการ์ดนี้จริงหรือไม่?')){
+          cards = cards.filter(x=>x.id!==b.dataset.delete);
+          if(index >= cards.length) index = Math.max(0, cards.length-1);
+          save(); showCard();
+        }
+      });
+    }
+
+    function showCard(){
+      if(cards.length===0){
+        frontEl.textContent = '';
+        backEl.textContent = '';
+        metaEl.textContent = 'ไม่พบการ์ด — เพิ่มการ์ดข้างล่าง';
+        cardEl.classList.remove('flipped');
+        modeText.textContent = (mode==='ordered')?'เรียง':'สุ่ม';
+        return;
+      }
+      modeText.textContent = (mode==='ordered')?'เรียง':'สุ่ม';
+      let idx = (mode==='shuffle')?shuffledOrder[index%cards.length]:index;
+      const c = cards[idx];
+      frontEl.textContent = c.front;
+      backEl.innerHTML = `<div>
+        <div style="font-size:15px;color:#374151;margin-bottom:6px">${escapeHtml(c.pinyin||'')}</div>
+        <div style="font-size:17px">${escapeHtml(c.back)}</div>
+      </div>`;
+      metaEl.textContent = `การ์ดที่ ${index+1} / ${cards.length}`;
+      cardEl.classList.remove('flipped');
+    }
+
+    function flip(){ cardEl.classList.toggle('flipped'); }
+    function next(){ if(cards.length){ index=(index+1)%cards.length; showCard(); } }
+    function prev(){ if(cards.length){ index=(index-1+cards.length)%cards.length; showCard(); } }
+    function shuffleOrder(){
+      mode = (mode==='ordered')?'shuffle':'ordered';
+      if(mode==='shuffle') shuffledOrder = shuffle(Array.from(cards.keys()));
+      index=0; showCard();
+    }
+
+    addBtn.onclick = () => {
+      const f=frontInput.value.trim(), p=pinyinInput.value.trim(), b=backInput.value.trim();
+      if(!f||!b){ alert('กรุณากรอกคำจีนและคำแปล'); return; }
+      cards.push({id:uid(),front:f,pinyin:p,back:b,createdAt:new Date().toISOString()});
+      save(); frontInput.value=pinyinInput.value=backInput.value='';
+      index=cards.length-1; showCard();
+    };
+    function startEdit(id){
+      const c=cards.find(x=>x.id===id); if(!c)return;
+      editingId=id;
+      frontInput.value=c.front; pinyinInput.value=c.pinyin||''; backInput.value=c.back;
+      addBtn.style.display='none'; updateBtn.style.display='inline-block';
+    }
+    updateBtn.onclick=()=>{
+      if(!editingId)return;
+      const f=frontInput.value.trim(), p=pinyinInput.value.trim(), b=backInput.value.trim();
+      if(!f||!b){ alert('กรุณากรอกคำจีนและคำแปล'); return; }
+      const c=cards.find(x=>x.id===editingId); if(!c)return;
+      c.front=f; c.pinyin=p; c.back=b;
+      editingId=null; addBtn.style.display='inline-block'; updateBtn.style.display='none';
+      save(); frontInput.value=pinyinInput.value=backInput.value=''; showCard();
+    };
+    clearBtn.onclick=()=>{frontInput.value=pinyinInput.value=backInput.value='';editingId=null;addBtn.style.display='inline-block';updateBtn.style.display='none';};
+
+    exportBtn.onclick=()=>{
+      const blob=new Blob([JSON.stringify(cards,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download='flashcards.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    };
+    importBtn.onclick=()=>fileInput.click();
+    fileInput.onchange=(e)=>{
+      const f=e.target.files[0]; if(!f)return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const arr=JSON.parse(reader.result);
+          const cleaned=arr.map(it=>({id:it.id||uid(),front:String(it.front||''),pinyin:String(it.pinyin||''),back:String(it.back||''),createdAt:it.createdAt||new Date().toISOString()})).filter(it=>it.front&&it.back);
+          if(cleaned.length===0){alert('ไฟล์ไม่มีการ์ดที่ใช้ได้');return;}
+          if(confirm('นำเข้าแล้วจะเพิ่มต่อจากของเดิม? (Cancel=แทนที่ทั้งหมด)')) cards=cards.concat(cleaned); else cards=cleaned;
+          save(); fileInput.value=''; index=0; showCard();
+        }catch(err){alert('ไม่สามารถนำเข้าไฟล์: '+err.message);}
+      };
+      reader.readAsText(f);
+    };
+
+    flipBtn.onclick=flip; nextBtn.onclick=next; prevBtn.onclick=prev; shuffleBtn.onclick=shuffleOrder;
+    document.addEventListener('keydown',(e)=>{
+      if(e.code==='Space'){e.preventDefault();flip();}
+      else if(e.key==='ArrowRight') next();
+      else if(e.key==='ArrowLeft') prev();
+    });
+    cardEl.addEventListener('click',flip);
+
+    function shuffle(arr){let a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+    function escapeHtml(s){return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');}
+
+    if(cards.length===0){
+      cards=[
+        {id:uid(),front:'你好',pinyin:'nǐ hǎo',back:'สวัสดี',createdAt:new Date().toISOString()},
+        {id:uid(),front:'谢谢',pinyin:'xièxie',back:'ขอบคุณ',createdAt:new Date().toISOString()},
+        {id:uid(),front:'苹果',pinyin:'píngguǒ',back:'แอปเปิล',createdAt:new Date().toISOString()}
+      ];
+      save(); index=0; showCard();
+    } else { showCard(); renderList(); }
+  </script>
+</body>
+</html>
